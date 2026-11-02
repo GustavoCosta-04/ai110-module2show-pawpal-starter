@@ -62,19 +62,60 @@ Scheduling conflicts found: 0
 
 ## 🧪 Testing PawPal+
 
+Run the automated test suite from the project folder:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+`python -m pytest` is used (instead of plain `pytest`) so Python can find `pawpal_system.py`
+from the `tests/` folder.
+
+### What the tests cover
+
+The tests live in `tests/test_pawpal.py`:
+
+- **Task completion:** `mark_complete()` changes a task from pending to completed.
+- **Adding tasks to pets:** `Pet.add_task()` increases the pet's task count.
+- **Chronological sorting:** `Scheduler.sort_by_time()` orders tasks added out of order, sorts by
+  date before time, uses priority to break ties, and does not modify the original lists.
+- **Filtering by pet and completion status:** `Scheduler.filter_tasks()` by pet name (case-insensitive),
+  `completed=True`, `completed=False`, both together, an unknown pet, and no filters.
+- **Daily and weekly recurring tasks:** `Scheduler.mark_task_complete()` creates a pending task
+  one day (daily) or seven days (weekly) later on the same pet, keeping the title, time and priority.
+  A non-recurring task creates nothing new.
+- **Duplicate recurrence prevention:** completing the same task twice, or calling
+  `generate_recurring_tasks()` afterwards, does not create a second copy.
+- **Scheduling conflict detection:** two pending tasks at the same date and time form one conflict;
+  warnings include the date, time, titles and pet names; completed tasks and different dates or
+  times are not conflicts.
+- **Empty task lists:** a pet with no tasks, an owner with no pets, and a `Scheduler` with no owner
+  all return empty lists without errors.
+
+### Test output
 
 ```
-# Paste your pytest output here
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.7.0
+rootdir: D:\FAU\CEN5035\PawPawl\ai110-module2show-pawpal-starter
+plugins: anyio-4.12.1
+collected 28 items
+
+tests\test_pawpal.py ............................                        [100%]
+
+============================= 28 passed in 0.05s ==============================
 ```
+
+### Confidence Level
+
+⭐⭐⭐⭐☆ (4 out of 5)
+
+All 28 tests pass, and they cover every `Scheduler` feature (sorting, filtering, recurrence,
+duplicate prevention, conflict detection) with both normal cases and edge cases such as empty
+lists, completed tasks and unknown pet names. One star is held back because some behavior is not
+tested yet: the Streamlit interface in `app.py`, input validation errors (for example an empty
+title or invalid priority), removing pets or tasks, standalone tasks added directly to the
+scheduler, and duration-based overlaps (conflict detection only checks exact date and time).
 
 ## 📐 Smarter Scheduling
 
