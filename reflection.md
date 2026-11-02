@@ -7,17 +7,23 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+For the initial design of PawPal+, I decided to organize the application around four main classes: Owner, Pet, Task, and Scheduler.
+
+The Owner class represents the person responsible for managing their pets. It stores basic information such as the owner's ID, name, email, and registered pets. The Pet class represents each individual animal and stores information such as its ID, name, species, age, owner ID, and associated tasks.
+
+The Task class represents individual pet care activities, including feeding, walking, medication, and veterinary appointments. Each task contains information about its title, type, scheduled date and time, priority, and completion status.
+
+Finally, the Scheduler class is responsible for managing and organizing tasks. It will eventually allow the application to sort activities, identify scheduling conflicts, retrieve daily schedules, and generate recurring tasks.
+
+I chose this structure because separating responsibilities into different classes makes the application easier to understand, maintain, and expand. Each class has a specific purpose, while their relationships allow the different parts of the application to work together.
+
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
 
+No nothing really changed.
 
-Register and manage pets: Owners should be able to add new pets to their accounts by entering information such as the pet's name, species, age, and other relevant details. They should also be able to update or remove pet information when necessary.
-
-Schedule pet care activities: Owners should be able to create tasks for their pets, including feeding times, walks, medication reminders, and veterinary appointments. Each task should include a scheduled date, time, and priority.
-
-View and manage daily schedules: Owners should be able to see all scheduled activities for a specific day, organized by time and priority. They should also be able to mark completed tasks and identify scheduling conflicts to ensure their pets receive proper care.
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
@@ -32,6 +38,9 @@ View and manage daily schedules: Owners should be able to see all scheduled acti
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
 
+One tradeoff in my scheduling system is that conflict detection only identifies tasks scheduled at the exact same date and time. This approach makes the algorithm simpler and more efficient because it groups tasks using a dictionary instead of comparing every possible pair of tasks. The dictionary-based approach has an average time complexity of O(n) for grouping tasks, although sorting the conflicting time slots adds additional overhead.
+
+However, this approach does not detect overlapping tasks with different start times. For example, if a 60-minute walk begins at 8:00 AM and another task begins at 8:30 AM, the system will not identify a conflict. Detecting these situations would require adding task duration information and implementing more advanced overlap calculations. I decided to keep exact-time conflict detection because it provides useful functionality while keeping the system simple and understandable.
 ---
 
 ## 3. AI Collaboration

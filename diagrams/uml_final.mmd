@@ -1,0 +1,69 @@
+classDiagram
+    direction LR
+
+    %% Task and Pet are dataclasses; Owner and Scheduler are regular classes.
+    %% Task, Pet and Owner validate their inputs and raise ValueError on bad data.
+
+    class Owner {
+        +int owner_id
+        +str name
+        +str email
+        +list~Pet~ pets
+        +add_pet(pet) void
+        +remove_pet(pet_id) void
+        +get_pets() list~Pet~
+        +get_all_tasks() list~Task~
+    }
+
+    class Pet {
+        <<dataclass>>
+        +int pet_id
+        +str name
+        +str species
+        +int age
+        +int owner_id
+        +list~Task~ tasks
+        +add_task(task) void
+        +remove_task(task_id) void
+        +get_tasks() list~Task~
+    }
+
+    class Task {
+        <<dataclass>>
+        +int task_id
+        +str title
+        +str task_type
+        +date date
+        +time time
+        +str priority
+        +bool completed
+        +bool recurring
+        +str description
+        +str frequency
+        +mark_complete() void
+        +mark_completed() void
+    }
+
+    class Scheduler {
+        +Owner owner
+        +list~Task~ tasks
+        +add_task(task) void
+        +get_all_tasks() list~Task~
+        +sort_by_time(tasks) list~Task~
+        +sort_tasks() list~Task~
+        +filter_tasks(pet_name, completed) list~Task~
+        +get_daily_tasks(date) list~Task~
+        +detect_conflicts() list~list~Task~~
+        +get_conflict_warnings() list~str~
+        +mark_task_complete(task) Task
+        +generate_recurring_tasks() list~Task~
+        -_create_next_occurrence(task) Task
+        -_store_next_to(original, new_task) void
+        -_pet_name_for(task) str
+    }
+
+    Owner "1" *-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : has
+    Scheduler "0..*" --> "0..1" Owner : reads pets and tasks through
+    Scheduler "1" o-- "0..*" Task : standalone tasks
+    Scheduler ..> Pet : finds a task's pet / stores new occurrences

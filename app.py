@@ -155,8 +155,6 @@ if st.button("Add task"):
             )
             selected_pet.add_task(new_task)
             st.success(f"Added '{new_task.title}' for {selected_pet.name}.")
-            for message in scheduler.get_conflict_warnings():
-                st.warning(message)
         except ValueError as error:
             st.error(str(error))
 
@@ -179,26 +177,47 @@ if pending_tasks:
         if next_task is not None:
             st.info(f"Next {next_task.frequency} occurrence scheduled for {next_task.date}.")
 
+conflict_warnings = scheduler.get_conflict_warnings()
+for message in conflict_warnings:
+    st.warning(message)
+
 if owner.get_all_tasks():
-    st.write("Current tasks:")
-    st.table(task_rows(owner.get_all_tasks()))
+    st.write("Current tasks (sorted by date and time):")
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        pet_filter = st.selectbox(
+            "Filter by pet", ["All pets"] + [p.name for p in owner.get_pets()]
+        )
+    with filter_col2:
+        status_filter = st.selectbox("Filter by status", ["All", "Pending", "Completed"])
+
+    # The Scheduler does the filtering and sorting; None means "don't filter on this".
+    filtered_tasks = scheduler.filter_tasks(
+        pet_name=None if pet_filter == "All pets" else pet_filter,
+        completed={"All": None, "Pending": False, "Completed": True}[status_filter],
+    )
+    if filtered_tasks:
+        st.table(task_rows(filtered_tasks))
+    else:
+        st.info("No tasks match these filters.")
 else:
     st.info("No tasks yet. Add one above.")
 
 st.divider()
 
 st.subheader("Build Schedule")
-st.caption("Sorts every pet's tasks by date, time and priority, and checks for conflicts.")
+st.caption("Shows one day's tasks in time order and checks every pet's tasks for conflicts.")
+
+schedule_date = st.date_input("Schedule date", value=datetime.date.today())
 
 if st.button("Generate schedule"):
-    schedule = scheduler.sort_tasks()
-    if not schedule:
-        st.info("Nothing to schedule yet. Add a pet and some tasks first.")
+    daily_tasks = scheduler.get_daily_tasks(schedule_date)
+    if not daily_tasks:
+        st.info(f"No tasks scheduled for {schedule_date}.")
     else:
-        st.table(task_rows(schedule))
-        conflict_warnings = scheduler.get_conflict_warnings()
-        if conflict_warnings:
-            for message in conflict_warnings:
-                st.warning(message)
-        else:
-            st.success("No scheduling conflicts.")
+        st.success(f"{len(daily_tasks)} task(s) scheduled for {schedule_date}.")
+        st.table(task_rows(daily_tasks))
+    if conflict_warnings:
+        st.caption("Scheduling conflicts are listed in the warnings above the task table.")
+    else:
+        st.success("No scheduling conflicts.")
