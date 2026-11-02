@@ -12,6 +12,12 @@
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
 
+
+Register and manage pets: Owners should be able to add new pets to their accounts by entering information such as the pet's name, species, age, and other relevant details. They should also be able to update or remove pet information when necessary.
+
+Schedule pet care activities: Owners should be able to create tasks for their pets, including feeding times, walks, medication reminders, and veterinary appointments. Each task should include a scheduled date, time, and priority.
+
+View and manage daily schedules: Owners should be able to see all scheduled activities for a specific day, organized by time and priority. They should also be able to mark completed tasks and identify scheduling conflicts to ensure their pets receive proper care.
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
