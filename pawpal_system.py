@@ -151,57 +151,116 @@ class Scheduler:
                 all_tasks.append(task)
         return all_tasks
 
-    def sort_tasks(self):
-        """Return all tasks in chronological order (high priority first on ties)."""
+    def sort_by_time(self, tasks=None):
+        """Return a new list of tasks sorted by date, then time, then priority."""
+        if tasks is None:
+            tasks = self.get_all_tasks()
         priority_rank = {"high": 0, "medium": 1, "low": 2}
         return sorted(
-            self.get_all_tasks(),
+            tasks,
             key=lambda t: (t.date, t.time, priority_rank[t.priority]),
         )
+
+    def sort_tasks(self):
+        """Return all tasks in chronological order (same as sort_by_time)."""
+        return self.sort_by_time()
+
+    def filter_tasks(self, pet_name=None, completed=None):
+        """Return tasks matching the pet name and/or completion status, in time order."""
+        tasks = self.sort_by_time()
+
+        if pet_name is not None:
+            # Standalone tasks belong to no pet, so they never match a pet filter.
+            pet_tasks = []
+            if self.owner:
+                for pet in self.owner.get_pets():
+                    if pet.name.lower() == pet_name.lower():
+                        pet_tasks.extend(pet.get_tasks())
+            tasks = [t for t in tasks if any(t is p for p in pet_tasks)]
+
+        if completed is not None:
+            tasks = [t for t in tasks if t.completed == completed]
+
+        return tasks
 
     def get_daily_tasks(self, date: datetime.date):
         """Return the tasks scheduled for the given date, in time order."""
         return [t for t in self.sort_tasks() if t.date == date]
 
     def detect_conflicts(self):
-        """Return pairs of incomplete tasks scheduled at the same date and time."""
-        pending = [t for t in self.sort_tasks() if not t.completed]
-        conflicts = []
-        for i in range(len(pending)):
-            for j in range(i + 1, len(pending)):
-                a, b = pending[i], pending[j]
-                if a.date == b.date and a.time == b.time:
-                    conflicts.append((a, b))
-        return conflicts
+        """Return groups (lists) of pending tasks that share the same date and time."""
+        groups = {}
+        for task in self.get_all_tasks():
+            if not task.completed:
+                groups.setdefault((task.date, task.time), []).append(task)
+        # Keep only slots with 2+ tasks, earliest first
+        return [groups[slot] for slot in sorted(groups) if len(groups[slot]) >= 2]
+
+    def get_conflict_warnings(self):
+        """Return one readable warning message per conflicting time slot."""
+        warnings = []
+        for group in self.detect_conflicts():
+            first = group[0]
+            names = []
+            for task in group:
+                pet_name = self._pet_name_for(task)
+                names.append(f"{task.title} ({pet_name})" if pet_name else task.title)
+            warnings.append(
+                f"Conflict at {first.time.strftime('%H:%M')} on {first.date}: "
+                + ", ".join(names)
+            )
+        return warnings
+
+    def _pet_name_for(self, task: Task):
+        """Return the name of the pet that owns the task, or None if standalone."""
+        if self.owner:
+            for pet in self.owner.get_pets():
+                if any(task is t for t in pet.get_tasks()):
+                    return pet.name
+        return None
+
+    def mark_task_complete(self, task: Task):
+        """Mark a task done and return its new next occurrence (None if not created)."""
+        task.mark_complete()
+        return self._create_next_occurrence(task)
 
     def generate_recurring_tasks(self):
         """Create and return the next occurrence of each completed recurring task."""
-        all_tasks = self.get_all_tasks()
-        next_id = max((t.task_id for t in all_tasks), default=0) + 1
         new_tasks = []
-
-        for task in all_tasks:
-            if not (task.recurring and task.completed):
-                continue
-            days = 1 if task.frequency == "daily" else 7
-            next_date = task.date + datetime.timedelta(days=days)
-
-            already_exists = any(
-                t.title == task.title
-                and t.task_type == task.task_type
-                and t.date == next_date
-                and t.time == task.time
-                for t in all_tasks + new_tasks
-            )
-            if already_exists:
-                continue
-
-            new_task = replace(task, task_id=next_id, date=next_date, completed=False)
-            next_id += 1
-            self._store_next_to(task, new_task)
-            new_tasks.append(new_task)
-
+        for task in self.get_all_tasks():
+            if task.recurring and task.completed:
+                new_task = self._create_next_occurrence(task)
+                if new_task is not None:
+                    new_tasks.append(new_task)
         return new_tasks
+
+    def _create_next_occurrence(self, task: Task):
+        """Add the next daily/weekly copy of a recurring task to the same pet.
+
+        Returns the new task, or None if the task isn't recurring or the next
+        occurrence already exists (this is what prevents duplicates).
+        """
+        if not task.recurring:
+            return None
+
+        days = 1 if task.frequency == "daily" else 7
+        next_date = task.date + datetime.timedelta(days=days)
+        all_tasks = self.get_all_tasks()
+
+        already_exists = any(
+            t.title == task.title
+            and t.task_type == task.task_type
+            and t.date == next_date
+            and t.time == task.time
+            for t in all_tasks
+        )
+        if already_exists:
+            return None
+
+        next_id = max((t.task_id for t in all_tasks), default=0) + 1
+        new_task = replace(task, task_id=next_id, date=next_date, completed=False)
+        self._store_next_to(task, new_task)
+        return new_task
 
     def _store_next_to(self, original: Task, new_task: Task):
         """Put new_task in the same place (pet or scheduler) as original."""

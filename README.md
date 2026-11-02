@@ -46,13 +46,19 @@ pip install -r requirements.txt
 
 Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
 
-```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
-```
+==============================================================
+  Today's Schedule - Monday, November 02, 2026
+  Owner: Gustavo
+==============================================================
+Time     Pet       Task                        Status
+--------------------------------------------------------------
+07:30 AM Buddy     Morning walk                [ ] Pending
+09:00 AM Whiskers  Give medication             [x] Done
+03:30 PM Whiskers  Play session                [ ] Pending
+06:00 PM Buddy     Evening feeding             [ ] Pending
+==============================================================
+
+Scheduling conflicts found: 0
 
 ## 🧪 Testing PawPal+
 
@@ -72,14 +78,111 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+The `Scheduler` class in `pawpal_system.py` adds four algorithmic features on top of the
+basic task lists. It works through the `Owner`, so it always sees every pet's current tasks.
 
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | `Scheduler.sort_by_time()` | By date, then time, then priority (high first) |
+| Filtering | `Scheduler.filter_tasks()` | By pet name and/or completion status |
+| Conflict handling | `Scheduler.detect_conflicts()`, `Scheduler.get_conflict_warnings()` | Exact same date and time |
+| Recurring tasks | `Scheduler.mark_task_complete()`, `Scheduler._create_next_occurrence()` | Daily (+1 day) or weekly (+7 days) |
+
+### 1. Sorting
+
+**Method:** `Scheduler.sort_by_time(tasks=None)`
+
+Returns a **new** list of tasks in chronological order, earliest first. It uses Python's
+`sorted()` with a lambda key of `(date, time, priority)`: the date comes first so multi-day
+schedules stay in order, the time orders tasks within a day, and priority breaks ties
+(`high` before `medium` before `low`). The original task lists are never changed. If you
+pass a list of tasks it sorts that list, otherwise it sorts every task the scheduler can see.
+`Scheduler.sort_tasks()` is kept as a shortcut that calls `sort_by_time()`.
+
+```python
+scheduler = Scheduler(owner)
+for task in scheduler.sort_by_time():
+    print(task.time, task.title)
+```
+
+### 2. Filtering
+
+**Method:** `Scheduler.filter_tasks(pet_name=None, completed=None)`
+
+Starts from the sorted task list, so results always come back in chronological order, then
+narrows it down:
+
+- `pet_name`: keeps only tasks that belong to a pet with that name (case-insensitive).
+  Standalone tasks added directly to the scheduler belong to no pet, so they are excluded
+  whenever a pet name is given.
+- `completed`: `True` keeps finished tasks, `False` keeps pending ones, `None` ignores status.
+- Both filters can be combined, and with neither the method returns every task.
+
+```python
+scheduler.filter_tasks(pet_name="Rex")                      # all of Rex's tasks
+scheduler.filter_tasks(completed=False)                     # everything still pending
+scheduler.filter_tasks(pet_name="Luna", completed=False)    # Luna's pending tasks
+```
+
+### 3. Recurring tasks
+
+**Methods:** `Scheduler.mark_task_complete(task)` and the private helper
+`Scheduler._create_next_occurrence(task)`. `Scheduler.generate_recurring_tasks()` uses the
+same helper.
+
+A task is recurring when its `frequency` is `"daily"` or `"weekly"` (see `Task`).
+`mark_task_complete()` calls the task's `mark_complete()` and then asks
+`_create_next_occurrence()` for the next one:
+
+1. If the task is not recurring, nothing is created.
+2. The next date is the task's date plus a `datetime.timedelta`: 1 day for daily, 7 days for weekly.
+3. The new task is a copy made with `dataclasses.replace()`. It keeps the title, time,
+   priority, type, frequency and description, gets a new unique `task_id`, and has
+   `completed=False`.
+4. It is added to the **same pet** that owned the original task.
+
+`mark_task_complete()` returns the new task, or `None` if none was created.
+`generate_recurring_tasks()` does the same for every task that is already completed and
+recurring, and returns the list of new tasks.
+
+**Duplicate prevention:** before creating a task, `_create_next_occurrence()` checks whether
+a task with the same title, type, date and time already exists. If it does, nothing is
+created, so completing the same task twice (or calling `generate_recurring_tasks()`
+afterwards) never produces duplicates.
+
+```python
+walk = Task(1, "Give vitamins", "medication", today, time(8, 0), "high", frequency="daily")
+pet.add_task(walk)
+next_walk = scheduler.mark_task_complete(walk)   # next_walk.date == today + 1 day
+```
+
+In the Streamlit app, use the **Mark a task complete** dropdown and **Mark complete** button
+to trigger this.
+
+### 4. Conflict detection
+
+**Methods:** `Scheduler.detect_conflicts()` and `Scheduler.get_conflict_warnings()`
+
+`detect_conflicts()` makes one pass over the tasks and groups the **pending** ones
+(`completed=False`) in a dictionary keyed by `(date, time)`. Any key holding two or more
+tasks is a conflict. It returns a list of conflicting groups (each group is a list of
+tasks), earliest first, and returns an empty list when there are none. It never raises an
+exception. Because each task is visited once and dictionary lookups are constant time, the
+grouping is O(n).
+
+`get_conflict_warnings()` turns each group into a readable message, including the pet name
+when the task belongs to a pet, and returns an empty list when there are no conflicts:
+
+```
+Conflict at 08:00 on 2026-11-02: Morning walk (Buddy), Give medication (Whiskers)
+```
+
+Completed tasks are ignored, so a finished task never causes a conflict. The Streamlit app
+shows these messages as warnings after you add a task and when you click **Generate schedule**.
+
+> **Limitation:** conflict detection only checks for an **exact date-and-time match**. It does
+> not look at task durations, so two tasks whose durations overlap but start at different
+> times are not flagged.
 
 ## 📸 Demo Walkthrough
 
